@@ -4,7 +4,7 @@ import networkx as nx
 import numpy as np
 
 # Load the data from CSV file
-data_path = r'C:\Users\Evan Anderson\Desktop\data_with_NLP_sorted.csv'
+data_path = r'C:\Users\Evan Anderson\Desktop\data_with_NLP.csv'
 df = pd.read_csv(data_path)
 
 # Convert non-numeric columns to NaN
