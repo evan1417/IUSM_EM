@@ -17,22 +17,13 @@ icd_category_stats = df.groupby('icd.category').agg({
     'compound': 'mean'
 }).reset_index()
 
-# Create a dictionary to store icd.category statistics
-icd_stats_dict = {}
-for _, row in icd_category_stats.iterrows():
-    category = row['icd.category']
-    acuity = row['acuity']
-    compound = row['compound']
-    icd_stats_dict[category] = {'acuity': acuity, 'compound': compound}
-
 # Create the NetworkX graph
 G = nx.Graph()
 
 # Add nodes for icd.categories with their attributes
-for category, stats in icd_stats_dict.items():
-    size = abs(stats['acuity'] - icd_category_stats['acuity'].min()) + 1
-    color = 'red' if stats['compound'] < 0 else 'blue'
-    G.add_node(category, size=size, color=color, **stats)
+for _, row in icd_category_stats.iterrows():
+    category = row['icd.category']
+    G.add_node(category, **row)
 
 # Add nodes for sites
 sites = df['site'].unique()
@@ -40,30 +31,48 @@ for site in sites:
     G.add_node(site, size=5, color='green', acuity=np.nan, compound=np.nan)  # Set default acuity and compound to NaN
 
 # Create edges between sites and icd.categories
+edges = []
 for _, row in df.iterrows():
-    G.add_edge(row['site'], row['icd.category'])
+    edges.append((row['site'], row['icd.category']))
+G.add_edges_from(edges)
 
 # Create positions for nodes in the plot
 pos = nx.spring_layout(G, seed=42)
 
+# Calculate positions for nodes in the plot with random initial positions
+pos = nx.spring_layout(G, seed=42, pos={node: (np.random.rand(), np.random.rand()) for node in G.nodes()})
+
 # Extract node positions, colors, and sizes for Plotly
 node_x = [pos[node][0] for node in G.nodes()]
 node_y = [pos[node][1] for node in G.nodes()]
-node_color = [G.nodes[node].get('color', 'green') for node in G.nodes()]  # Use 'green' as default color for sites
-node_size = [G.nodes[node].get('size', 5) for node in G.nodes()]  # Use 5 as default size for sites
+node_color = ['blue' if 'icd.category' in G.nodes[node] else 'green' for node in G.nodes()]
+node_size = [10 if 'icd.category' in G.nodes[node] else 5 for node in G.nodes()]
+
+# Calculate edge widths based on the number of occurrences of icd.categories per site
+edge_counts = nx.edge_betweenness_centrality(G)
+edge_widths = [0.5 + 2 * edge_counts[edge] if G.nodes[edge[1]].get('icd.category') is not None else 0.5 for edge in G.edges()]
 
 # Create the network graph using Plotly
 fig = go.Figure()
 
 # Draw edges
-for edge in G.edges():
+for edge, width in zip(G.edges(), edge_widths):
     fig.add_trace(go.Scatter(x=[pos[edge[0]][0], pos[edge[1]][0]],
                              y=[pos[edge[0]][1], pos[edge[1]][1]],
                              mode='lines',
-                             line=dict(color='gray', width=0.5),
+                             line=dict(color='gray', width=width),
                              hoverinfo='none'))
 
 # Draw nodes
+node_text = []
+for node in G.nodes():
+    if 'icd.category' in G.nodes[node]:
+        icd_categories = [edge[1] for edge in G.edges(node) if isinstance(edge[1], str)]
+        node_text.append(f"{node}<br>icd.categories: {', '.join(icd_categories)}")
+    else:
+        icd_categories = [edge[1] for edge in G.edges(node) if isinstance(edge[1], str)]
+        node_text.append(f"{node}<br>icd.categories: {', '.join(icd_categories)}" if icd_categories else node)
+
 fig.add_trace(go.Scatter(x=node_x,
                          y=node_y,
                          mode='markers',
@@ -72,8 +81,8 @@ fig.add_trace(go.Scatter(x=node_x,
                                      colorscale='Viridis',
                                      showscale=False),
                          text=list(G.nodes()),
-                         hovertemplate='icd.category: %{text}<br>Acuity: %{customdata[0]:.2f}<br>Compound: %{customdata[1]:.2f}<extra></extra>',
-                         customdata=[[G.nodes[node].get('acuity', np.nan), G.nodes[node].get('compound', np.nan)] for node in G.nodes()],
+                         hovertext=node_text,  # Use node_text to display hover information
+                         hovertemplate='%{text}<extra></extra>',
                          hoverinfo='text'))
 
 # Add labels for icd.categories
