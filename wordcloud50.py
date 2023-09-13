@@ -7,8 +7,8 @@ import ast
 
 # Load the data
 ##mac load 
-data_path = r'/Users/evan/Desktop/data_with_NLP.csv'
-#data_path = r'C:\Users\Evan Anderson\Desktop\data_with_NLP.csv'
+#data_path = r'/Users/evan/Desktop/data_with_NLP.csv'
+data_path = r'C:\Users\Evan Anderson\Desktop\data_with_NLP.csv'
 df = pd.read_csv(data_path)
 
 
